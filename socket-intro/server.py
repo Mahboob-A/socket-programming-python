@@ -32,7 +32,7 @@ def server():
             conn.send(message.encode())
     except Exception as e: 
         print('An error occurred: ', str(e))
-    finally: 
+    finally:
         conn.close()
 
 
