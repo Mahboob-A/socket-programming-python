@@ -11,9 +11,10 @@ def create_socket():
                 # TCP connection 
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 logging.info('socket creation successful!')
-                return sock             
+                return sock, None        
         except socket.error as err: 
                 logging.error('Socket creation error:  ', err)
+                return None, err 
                 sys.exit(1)
 
 
@@ -58,7 +59,7 @@ def accept_socket(sock):
                 logging.error("Error accepting the connection: ", err)
 
 
-def commands_handler(conn, s): 
+def commands_handler(conn, sock): 
     """Sends commands to the clinet. """
     logging.info("Sending commands to client... ")
     while True:
@@ -74,7 +75,11 @@ def commands_handler(conn, s):
             if len(encoded_command) > 0:
                 conn.send(encoded_command)
                 data = conn.recv(1024).decode("utf-8")  # str(conn.recv(1024), 'utf-8')
+                if not data: 
+                    close_connection(conn=conn, sock=sock)
+                print()
                 print(data, end="")
+                print()
         except socket.error as err:
             logging.error("Error sending or receving data: ", err)
             break
@@ -97,31 +102,33 @@ def main():
         logging.info('Starting server...')
         
         # Create and bind the socket 
-        sock = create_socket()
-        bind_successful = bind_socket(sock)
-        if bind_successful: 
-                logging.info('Connection bind successful!')
-                logging.info(
-                        f"server is listening to host:  {'open-to-all' if HOST == '' else HOST} and port:  {PORT}"
-                )
-                conn = None 
-                try: 
-                        conn, addr = accept_socket(sock=sock)
-                        commands_handler(conn)
-                        # close the connection and the socket as the user pressed 'q' 
-                        close_connection(sock, conn)
-                except KeyboardInterrupt: 
-                        logging.info('Server shutdown initiated by user.')
-                        # close the connection and the socket as the user pressed 'ctrl-c'
-                        # if server is stopped as ctrl-c before any connection has established, 
-                        # then conn will be unavailable. 
-                        if conn is not None: 
-                                close_connection(conn, sock)
-                        else: 
-                                close_connection(sock)
+        sock, err = create_socket()
+        if sock: 
+            bind_successful = bind_socket(sock)
+            if bind_successful: 
+                    logging.info('Connection bind successful!')
+                    logging.info(
+                            f"server is listening to host:  {'open-to-all' if HOST == '' else HOST} and port:  {PORT}"
+                    )
+                    conn = None 
+                    try: 
+                            conn, addr = accept_socket(sock=sock)
+                            commands_handler(conn, sock)
+                            # close the connection and the socket as the user pressed 'q' 
+                            close_connection(conn=conn, sock=sock)
+                    except KeyboardInterrupt: 
+                            logging.info('Server shutdown initiated by user.')
+                            # close the connection and the socket as the user pressed 'ctrl-c'
+                            # if server is stopped as ctrl-c before any connection has established, 
+                            # then conn will be unavailable. 
+                            if conn is not None: 
+                                    close_connection(conn, sock)
+                            else: 
+                                    close_connection(sock)
+            else: 
+                    logging.error('Aborting the connection: connection could not be established multiple retries!')
         else: 
-                logging.error('Aborting the connection: connection could not be established multiple retries!')
-
+            logging.error('Aborting the connection: socket could not be created: %s', err)
 
 
 if __name__ == '__main__': 
