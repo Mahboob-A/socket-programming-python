@@ -86,11 +86,15 @@ def commands_handler(conn, s):
         if command == "q":
             break
 
-        encoded_command = command.encode("utf-8")
-        if len(encoded_command) > 0:
-            conn.send(encoded_command)
-            data = conn.recv(1024).decode("utf-8")  # str(conn.recv(1024), 'utf-8')
-            print(data, end="")
+        try:
+            encoded_command = command.encode("utf-8")
+            if len(encoded_command) > 0:
+                conn.send(encoded_command)
+                data = conn.recv(1024).decode("utf-8")  # str(conn.recv(1024), 'utf-8')
+                print(data, end="")
+        except socket.error as err:
+            logging.error("Error sending or receving data: ", err)
+            break
 
 
 def close_connection(sock, conn=None):
@@ -131,4 +135,3 @@ def main():
 
 if __name__ == '__main__': 
         main()
-
