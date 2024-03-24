@@ -63,16 +63,12 @@ def commands_handler(sock):
                 print(terminal_byte_data.decode('utf-8')) 
             except BrokenPipeError as err: 
                 logging.error('Subprocess pipe is broken: {}'.format(err))
-                close_connection(sock)
             except Exception as e: 
                 logging.error('Error executing the command: {}'.format(str(e)))
-                close_connection(sock)
     except ConnectionResetError as err: 
         logging.error('Connection is rest by peer: {}'.format(err))
-        close_connection(sock)
     except Exception as e: 
         logging.error('Error handling commands: {}'.format(str(e)))
-        close_connection(sock)
 
 
 def close_connection(sock):
@@ -103,10 +99,8 @@ def main():
 
     try: 
         commands_handler(sock)
-        close_connection(sock)
     except KeyboardInterrupt: 
         logging.info("Client shutdown initiated by user.")
-        close_connection(sock)
     finally: 
         close_connection(sock)
 
