@@ -2,7 +2,7 @@ import socket
 import sys 
 import logging
 
-from config import HOST, PORT
+from config import HOST, PORT, MAX_BIND_RETRIES
 
 
 def create_socket(): 
@@ -17,52 +17,35 @@ def create_socket():
                 sys.exit(1)
 
 
-def bind_socket(sock): 
-    """Binds the socket to the specified host and port."""
+def bind_socket_helper(sock):
+    """Binds to bind the socket to the specified host and port."""
     try:
         # binding and listening to at most 2 connections
         sock.bind((HOST, PORT))
         sock.listen(2)
-        logging.info(
-                f"server is listening in host:  {'open-to-all' if HOST == '' else HOST} and port:  {PORT}"
-        )
-    except socket.error as err:
-        logging.error("Socket binding error:  ", err)
-        logging.info('Retrying to bind socket...')
-        # call the helper function to retry to bind the socket. 
-        retry_bind_socket_helper(sock)
-
-
-def retry_bind_socket(sock):
-    """Retries to bind the socket to the specified host and port."""
-    try:
-        # binding and listening to at most 2 connections
-        sock.bind((HOST, PORT))
-        sock.listen(2)
-        logging.info(
-            f"server is listening in host:  {'open-to-all' if HOST == '' else HOST} and port:  {PORT}"
-        )
         return True 
     except socket.error as err:
-        logging.error("Socket binding error:  ", err)
+        logging.error("Socket binding error:  %s", err)
         logging.info("Retrying to bind socket...")
         return False 
 
 
-def retry_bind_socket_helper(sock):
-    '''Helper function to retury to bind to the speific HOST and PORT for 5 times. ''' 
-    retry = 5
-    
-    while retry >= 0: 
-        result = retry_bind_socket(sock)
-        if not result:
-                retry -= 1
+def bind_socket(sock):
+    '''Entry function to bind to the speific HOST and PORT. ''' 
+    for attempt in range(MAX_BIND_RETRIES + 1): # MAX_BIND_RETRIES = 5 
+        bind_successful = bind_socket_helper(sock)
+        if bind_successful: 
+                return True 
+                # continue # continue to reproduce the error 
         else: 
-                break
-
-    if retry == 0:
-        logging.error("Failed to bind to connection!")
-        logging.info("Retried to bind the socket upto 5 times")
+            logging.error("Socket binding error attempt %d:  ", attempt)
+            if attempt == MAX_BIND_RETRIES:
+                logging.error(
+                    "Failed to bind to the connection after {} retries.".format(
+                        MAX_BIND_RETRIES
+                    )
+                )
+                return False 
 
 
 def accept_socket(sock): 
@@ -86,11 +69,15 @@ def commands_handler(conn, s):
         if command == "q":
             break
 
-        encoded_command = command.encode("utf-8")
-        if len(encoded_command) > 0:
-            conn.send(encoded_command)
-            data = conn.recv(1024).decode("utf-8")  # str(conn.recv(1024), 'utf-8')
-            print(data, end="")
+        try:
+            encoded_command = command.encode("utf-8")
+            if len(encoded_command) > 0:
+                conn.send(encoded_command)
+                data = conn.recv(1024).decode("utf-8")  # str(conn.recv(1024), 'utf-8')
+                print(data, end="")
+        except socket.error as err:
+            logging.error("Error sending or receving data: ", err)
+            break
 
 
 def close_connection(sock, conn=None):
@@ -111,24 +98,31 @@ def main():
         
         # Create and bind the socket 
         sock = create_socket()
-        bind_socket(sock)
-        conn = None 
-        try: 
-                conn, addr = accept_socket(sock=sock)
-                commands_handler(conn)
-                # close the connection and the socket as the user pressed 'q' 
-                close_connection(sock, conn)
-        except KeyboardInterrupt: 
-                logging.info('Server shutdown initiated by user.')
-                # close the connection and the socket as the user pressed 'ctrl-c'
-                # if server is stopped as ctrl-c before any connection has established, 
-                # then conn will be unavailable. 
-                if conn is not None: 
-                        close_connection(conn, sock)
-                else: 
-                        close_connection(sock)
+        bind_successful = bind_socket(sock)
+        if bind_successful: 
+                logging.info('Connection bind successful!')
+                logging.info(
+                        f"server is listening to host:  {'open-to-all' if HOST == '' else HOST} and port:  {PORT}"
+                )
+                conn = None 
+                try: 
+                        conn, addr = accept_socket(sock=sock)
+                        commands_handler(conn)
+                        # close the connection and the socket as the user pressed 'q' 
+                        close_connection(sock, conn)
+                except KeyboardInterrupt: 
+                        logging.info('Server shutdown initiated by user.')
+                        # close the connection and the socket as the user pressed 'ctrl-c'
+                        # if server is stopped as ctrl-c before any connection has established, 
+                        # then conn will be unavailable. 
+                        if conn is not None: 
+                                close_connection(conn, sock)
+                        else: 
+                                close_connection(sock)
+        else: 
+                logging.error('Aborting the connection: connection could not be established multiple retries!')
+
 
 
 if __name__ == '__main__': 
         main()
-
