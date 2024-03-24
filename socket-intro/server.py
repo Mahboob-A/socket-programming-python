@@ -34,6 +34,7 @@ def server():
         print('An error occurred: ', str(e))
     finally:
         conn.close()
+        s.close()
 
 
 
