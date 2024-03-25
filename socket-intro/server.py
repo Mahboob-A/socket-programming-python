@@ -3,7 +3,7 @@ import socket
 
 def server(): 
     try: 
-        host = '127.0.01'
+        host = '127.0.0.1'
         port = 15530 
 
         s = socket.socket()
